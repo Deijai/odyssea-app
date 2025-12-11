@@ -1,53 +1,112 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
+// src/theme/theme.ts
+export type ThemeMode = 'light' | 'dark';
 
-import { Platform } from 'react-native';
+export type Theme = {
+  mode: ThemeMode;
+  colors: {
+    primary: string;
+    primarySoft: string;
+    background: string;
+    backgroundAlt: string;
+    card: string;
+    cardSoft: string;
+    border: string;
+    text: string;
+    textSoft: string;
+    textMuted: string;
+    danger: string;
+    success: string;
+    overlay: string;
+  };
+  radius: {
+    xs: number;
+    sm: number;
+    md: number;
+    lg: number;
+    xl: number;
+    full: number;
+  };
+  spacing: {
+    xs: number;
+    sm: number;
+    md: number;
+    lg: number;
+    xl: number;
+  };
+  shadow: {
+    soft: {
+      shadowColor: string;
+      shadowOffset: { width: number; height: number };
+      shadowOpacity: number;
+      shadowRadius: number;
+      elevation: number;
+    };
+  };
+};
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
-export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+const base = {
+  radius: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 24,
+    full: 999,
   },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 24,
+  },
+  shadow: {
+    soft: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      elevation: 6,
+    },
   },
 };
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+export const lightTheme: Theme = {
+  mode: 'light',
+  colors: {
+    primary: '#10B981',        // Verde esmeralda vibrante
+    primarySoft: '#D1FAE5',    // Verde suave pastel
+    background: '#ffffffff',     // Verde muito claro, quase branco
+    backgroundAlt: '#FFFFFF',  // Branco puro
+    card: '#FFFFFF',           // Branco puro para cards
+    cardSoft: '#ECFDF5',       // Verde clarinho para destaque
+    border: '#D1D5DB',         // Cinza neutro
+    text: '#065F46',           // Verde escuro para texto principal
+    textSoft: '#047857',       // Verde médio para texto secundário
+    textMuted: '#6B7280',      // Cinza para texto terciário
+    danger: '#EF4444',         // Vermelho para alertas
+    success: '#10B981',        // Verde para sucesso (mesmo do primary)
+    overlay: 'rgba(6, 95, 70, 0.6)',  // Overlay verde escuro
   },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+  ...base,
+};
+
+export const darkTheme: Theme = {
+  mode: 'dark',
+  colors: {
+    primary: '#34D399',        // Verde menta brilhante
+    primarySoft: '#064E3B',    // Verde escuro profundo
+    background: '#022C22',     // Verde quase preto
+    backgroundAlt: '#0F172A',  // Slate escuro
+    card: '#064E3B',           // Verde escuro para cards
+    cardSoft: '#065F46',       // Verde escuro médio para destaque
+    border: '#1F2937',         // Cinza escuro neutro
+    text: '#ECFDF5',           // Verde clarinho para texto
+    textSoft: '#A7F3D0',       // Verde claro para secundário
+    textMuted: '#9CA3AF',      // Cinza para terciário
+    danger: '#F87171',         // Vermelho suave
+    success: '#34D399',        // Verde menta (mesmo do primary)
+    overlay: 'rgba(2, 44, 34, 0.85)',  // Overlay verde muito escuro
   },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
+  ...base,
+};
