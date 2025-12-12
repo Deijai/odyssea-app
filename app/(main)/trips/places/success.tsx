@@ -5,12 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import {
-    SafeAreaView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function PlaceSuccessScreen() {
     const { theme } = useTheme();
@@ -40,7 +40,7 @@ export default function PlaceSuccessScreen() {
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.background }]}>
             <View style={styles.content}>
                 <View
                     style={[

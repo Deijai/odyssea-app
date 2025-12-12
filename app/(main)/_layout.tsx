@@ -8,6 +8,7 @@ export default function MainLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="create-trip" />
             <Stack.Screen name="trips/[id]" />
+            <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
         </Stack>
     );
 }
