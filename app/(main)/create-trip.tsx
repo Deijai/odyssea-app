@@ -19,6 +19,8 @@ import { DateField } from '@/components/form/DateField';
 import { InputField } from '@/components/ui/InputField';
 import { ThemedButton } from '@/components/ui/ThemedButton';
 import { useTheme } from '@/hooks/useTheme';
+import { uploadTripCoverAsync } from '@/services/tripMediaService';
+import { useAuthStore } from '@/stores/authStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { Trip } from '@/types/trip';
 import * as ImagePicker from 'expo-image-picker';
@@ -27,6 +29,7 @@ export default function CreateTripScreen() {
     const { theme } = useTheme();
     const router = useRouter();
     const { addTrip, setSelectedTrip } = useTripStore();
+    const firebaseUser = useAuthStore((s) => s.firebaseUser);
 
     const [titulo, setTitulo] = useState('');
     const [destino, setDestino] = useState('');
@@ -49,12 +52,15 @@ export default function CreateTripScreen() {
     }
 
     async function handlePickCover() {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const { status } =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
             return;
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
+            // se quiser tirar o warning, troca pra:
+            // mediaTypes: [ImagePicker.MediaType.IMAGE],
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsMultipleSelection: false,
             quality: 0.9,
@@ -75,33 +81,51 @@ export default function CreateTripScreen() {
             return;
         }
 
+        if (!firebaseUser?.uid) {
+            // sem usuário logado, não cria viagem
+            return;
+        }
+
         setLoading(true);
 
-        const id = gerarId();
+        try {
+            const id = gerarId();
 
-        const trip: Trip = {
-            id,
-            title: titulo.trim(),
-            destination: destino.trim(),
-            startDate: inicio!,
-            endDate: fim!,
-            coverPhotoUrl:
-                coverUri ||
-                'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-            tags: parseTags(tagsText),
-            status: 'Upcoming',
-            places: [],
-        };
+            // default se não escolher capa
+            let coverPhotoUrl =
+                'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80';
 
-        addTrip(trip);
-        setSelectedTrip(id);
+            // se o usuário escolheu uma imagem, sobe pro Storage
+            if (coverUri) {
+                coverPhotoUrl = await uploadTripCoverAsync(
+                    firebaseUser.uid,
+                    id,
+                    coverUri
+                );
+            }
 
-        setLoading(false);
+            const trip: Trip = {
+                id,
+                title: titulo.trim(),
+                destination: destino.trim(),
+                startDate: inicio!,
+                endDate: fim!,
+                coverPhotoUrl,
+                tags: parseTags(tagsText),
+                status: 'Upcoming',
+                places: [],
+            };
 
-        router.replace({
-            pathname: '/(main)/trips/[id]',
-            params: { id },
-        });
+            await addTrip(trip, firebaseUser.uid);
+            setSelectedTrip(id);
+
+            router.replace({
+                pathname: '/(main)/trips/[id]',
+                params: { id },
+            });
+        } finally {
+            setLoading(false);
+        }
     }
 
     return (
@@ -123,7 +147,11 @@ export default function CreateTripScreen() {
                                 { backgroundColor: theme.colors.cardSoft },
                             ]}
                         >
-                            <Ionicons name="chevron-back" size={18} color={theme.colors.text} />
+                            <Ionicons
+                                name="chevron-back"
+                                size={18}
+                                color={theme.colors.text}
+                            />
                         </TouchableOpacity>
 
                         <Text
@@ -153,7 +181,8 @@ export default function CreateTripScreen() {
                             { color: theme.colors.textSoft },
                         ]}
                     >
-                        Defina o destino, as datas e uma capa. Depois você adiciona os locais aos poucos.
+                        Defina o destino, as datas e uma capa. Depois você
+                        adiciona os locais aos poucos.
                     </Text>
 
                     {/* CAPA */}
@@ -274,24 +303,29 @@ export default function CreateTripScreen() {
                             />
                             {parseTags(tagsText).length > 0 && (
                                 <View style={styles.tagsPreviewRow}>
-                                    {parseTags(tagsText).slice(0, 4).map((tag) => (
-                                        <View
-                                            key={tag}
-                                            style={[
-                                                styles.tagChip,
-                                                { backgroundColor: theme.colors.cardSoft },
-                                            ]}
-                                        >
-                                            <Text
-                                                style={{
-                                                    fontSize: 11,
-                                                    color: theme.colors.textSoft,
-                                                }}
+                                    {parseTags(tagsText)
+                                        .slice(0, 4)
+                                        .map((tag) => (
+                                            <View
+                                                key={tag}
+                                                style={[
+                                                    styles.tagChip,
+                                                    {
+                                                        backgroundColor:
+                                                            theme.colors.cardSoft,
+                                                    },
+                                                ]}
                                             >
-                                                #{tag}
-                                            </Text>
-                                        </View>
-                                    ))}
+                                                <Text
+                                                    style={{
+                                                        fontSize: 11,
+                                                        color: theme.colors.textSoft,
+                                                    }}
+                                                >
+                                                    #{tag}
+                                                </Text>
+                                            </View>
+                                        ))}
                                     {parseTags(tagsText).length > 4 && (
                                         <Text
                                             style={{

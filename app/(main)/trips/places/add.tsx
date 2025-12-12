@@ -14,7 +14,6 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -22,6 +21,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const CATEGORIES: VisitedPlaceCategory[] = [
     'Passeio',
@@ -55,7 +55,7 @@ export default function AddPlaceScreen() {
 
     if (!tripId || !trip) {
         // se algo errado, volta
-        router.replace('/(main)/');
+        router.replace('/(main)');
         return null;
     }
 
@@ -98,7 +98,7 @@ export default function AddPlaceScreen() {
             location: {
                 latitude: 0, // placeholder - depois integramos com mapa/localização
                 longitude: 0,
-                address: endereco.trim() || trip.destination,
+                address: endereco.trim() || trip?.destination!,
             },
             dateTime: dataHora,
             rating,
@@ -107,12 +107,12 @@ export default function AddPlaceScreen() {
             tags: parseTags(tagsText),
         };
 
-        addPlaceToTrip(trip.id, place);
+        addPlaceToTrip(trip!.id, place);
 
         setLoading(false);
         router.replace({
             pathname: '/(main)/trips/places/success',
-            params: { tripId: trip.id },
+            params: { tripId: trip!.id },
         });
     }
 

@@ -1,8 +1,8 @@
 // app/(main)/trips/[id]/index.tsx
+import { useCurrentTrip } from '@/hooks/useCurrentTrip';
 import { useTheme } from '@/hooks/useTheme';
-import { useTripStore } from '@/stores/tripStore';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
     Image,
@@ -15,14 +15,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TripTimelineScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>();
     const { theme } = useTheme();
     const router = useRouter();
-    const trip = useTripStore((s) => (id ? s.getTripById(id) : undefined));
+
+    // ✅ Agora usamos o hook centralizado
+    const { tripId, trip } = useCurrentTrip();
 
     const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
-    if (!id || !trip) {
+    if (!tripId || !trip) {
         return null;
     }
 
@@ -55,7 +56,7 @@ export default function TripTimelineScreen() {
     function handleAddFirst() {
         router.push({
             pathname: '/(main)/trips/places/add',
-            params: { tripId: id },
+            params: { tripId }, // ✅ usa tripId do hook
         });
     }
 
@@ -76,23 +77,42 @@ export default function TripTimelineScreen() {
                             { backgroundColor: theme.colors.cardSoft },
                         ]}
                     >
-                        <Ionicons name="pin-outline" size={28} color={theme.colors.primary} />
+                        <Ionicons
+                            name="pin-outline"
+                            size={28}
+                            color={theme.colors.primary}
+                        />
                     </View>
-                    <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+                    <Text
+                        style={[
+                            styles.emptyTitle,
+                            { color: theme.colors.text },
+                        ]}
+                    >
                         Comece registrando o primeiro lugar
                     </Text>
-                    <Text style={[styles.emptySubtitle, { color: theme.colors.textSoft }]}>
-                        Adicione restaurantes, passeios, praias e todas as paradas que fizeram parte
-                        dessa viagem.
+                    <Text
+                        style={[
+                            styles.emptySubtitle,
+                            { color: theme.colors.textSoft },
+                        ]}
+                    >
+                        Adicione restaurantes, passeios, praias e todas as paradas
+                        que fizeram parte dessa viagem.
                     </Text>
 
                     <TouchableOpacity
                         onPress={handleAddFirst}
                         activeOpacity={0.9}
-                        style={[styles.emptyButton, { backgroundColor: theme.colors.primary }]}
+                        style={[
+                            styles.emptyButton,
+                            { backgroundColor: theme.colors.primary },
+                        ]}
                     >
                         <Ionicons name="add" size={18} color="#FFFFFF" />
-                        <Text style={styles.emptyButtonText}>Adicionar primeiro local</Text>
+                        <Text style={styles.emptyButtonText}>
+                            Adicionar primeiro local
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -102,7 +122,11 @@ export default function TripTimelineScreen() {
     if (placesByDay.length === 0) {
         return (
             <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-                <Text style={{ color: theme.colors.text, padding: 20 }}>Carregando...</Text>
+                <Text
+                    style={{ color: theme.colors.text, padding: 20 }}
+                >
+                    Carregando...
+                </Text>
             </View>
         );
     }
@@ -135,10 +159,20 @@ export default function TripTimelineScreen() {
         >
             {/* Header fixo */}
             <View style={styles.header}>
-                <Text style={[styles.tripSubtitle, { color: theme.colors.textMuted }]}>
+                <Text
+                    style={[
+                        styles.tripSubtitle,
+                        { color: theme.colors.textMuted },
+                    ]}
+                >
                     TRIP TO {trip.destination.toUpperCase()}
                 </Text>
-                <Text style={[styles.tripTitle, { color: theme.colors.text }]}>
+                <Text
+                    style={[
+                        styles.tripTitle,
+                        { color: theme.colors.text },
+                    ]}
+                >
                     {trip.title}
                 </Text>
 
@@ -153,7 +187,9 @@ export default function TripTimelineScreen() {
                     ]}
                 >
                     <TouchableOpacity
-                        onPress={() => setSelectedDayIndex(Math.max(0, validDayIndex - 1))}
+                        onPress={() =>
+                            setSelectedDayIndex(Math.max(0, validDayIndex - 1))
+                        }
                         disabled={validDayIndex === 0}
                         style={styles.dayNavButton}
                     >
@@ -169,7 +205,12 @@ export default function TripTimelineScreen() {
                     </TouchableOpacity>
 
                     <View style={styles.dayInfo}>
-                        <Text style={[styles.dayDate, { color: theme.colors.textMuted }]}>
+                        <Text
+                            style={[
+                                styles.dayDate,
+                                { color: theme.colors.textMuted },
+                            ]}
+                        >
                             {currentDayDate
                                 .toLocaleDateString('pt-BR', {
                                     month: 'short',
@@ -177,7 +218,12 @@ export default function TripTimelineScreen() {
                                 })
                                 .toUpperCase()}
                         </Text>
-                        <Text style={[styles.dayNumber, { color: theme.colors.primary }]}>
+                        <Text
+                            style={[
+                                styles.dayNumber,
+                                { color: theme.colors.primary },
+                            ]}
+                        >
                             Dia {validDayIndex + 1}
                         </Text>
                     </View>
@@ -185,7 +231,10 @@ export default function TripTimelineScreen() {
                     <TouchableOpacity
                         onPress={() =>
                             setSelectedDayIndex(
-                                Math.min(placesByDay.length - 1, validDayIndex + 1)
+                                Math.min(
+                                    placesByDay.length - 1,
+                                    validDayIndex + 1
+                                )
                             )
                         }
                         disabled={validDayIndex === placesByDay.length - 1}
@@ -242,7 +291,7 @@ export default function TripTimelineScreen() {
                 onPress={() =>
                     router.push({
                         pathname: '/(main)/trips/places/add',
-                        params: { tripId: id },
+                        params: { tripId },
                     })
                 }
                 style={[
@@ -267,9 +316,10 @@ function PlaceCard({ place, theme, onPress }: any) {
         minute: '2-digit',
     });
 
-    // Altura aleatória para efeito masonry (entre 200-300)
     const hasImage = place.mediaUrls && place.mediaUrls[0];
-    const imageHeight = hasImage ? Math.floor(Math.random() * 100) + 200 : 140;
+    const imageHeight = hasImage
+        ? Math.floor(Math.random() * 100) + 200
+        : 140;
 
     return (
         <TouchableOpacity
@@ -292,7 +342,10 @@ function PlaceCard({ place, theme, onPress }: any) {
                 <View
                     style={[
                         styles.cardImagePlaceholder,
-                        { backgroundColor: theme.colors.cardSoft, height: imageHeight },
+                        {
+                            backgroundColor: theme.colors.cardSoft,
+                            height: imageHeight,
+                        },
                     ]}
                 >
                     <Ionicons
@@ -304,7 +357,12 @@ function PlaceCard({ place, theme, onPress }: any) {
             )}
 
             {/* Badge de categoria */}
-            <View style={[styles.categoryBadge, { backgroundColor: theme.colors.primary }]}>
+            <View
+                style={[
+                    styles.categoryBadge,
+                    { backgroundColor: theme.colors.primary },
+                ]}
+            >
                 <Ionicons
                     name={getCategoryIcon(place.category)}
                     size={10}
@@ -315,16 +373,28 @@ function PlaceCard({ place, theme, onPress }: any) {
 
             {/* Conteúdo */}
             <View style={styles.cardContent}>
-                <Text style={[styles.cardTime, { color: theme.colors.primary }]}>
+                <Text
+                    style={[styles.cardTime, { color: theme.colors.primary }]}
+                >
                     {hourText}
                 </Text>
-                <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={2}>
+                <Text
+                    style={[styles.cardTitle, { color: theme.colors.text }]}
+                    numberOfLines={2}
+                >
                     {place.name}
                 </Text>
                 <View style={styles.cardLocation}>
-                    <Ionicons name="location" size={11} color={theme.colors.textMuted} />
+                    <Ionicons
+                        name="location"
+                        size={11}
+                        color={theme.colors.textMuted}
+                    />
                     <Text
-                        style={[styles.cardLocationText, { color: theme.colors.textMuted }]}
+                        style={[
+                            styles.cardLocationText,
+                            { color: theme.colors.textMuted },
+                        ]}
                         numberOfLines={1}
                     >
                         {place.location.address.split(',')[0]}
@@ -339,7 +409,11 @@ function PlaceCard({ place, theme, onPress }: any) {
                                 key={i}
                                 name={i < place.rating ? 'star' : 'star-outline'}
                                 size={11}
-                                color={i < place.rating ? '#F59E0B' : theme.colors.border}
+                                color={
+                                    i < place.rating
+                                        ? '#F59E0B'
+                                        : theme.colors.border
+                                }
                             />
                         ))}
                     </View>

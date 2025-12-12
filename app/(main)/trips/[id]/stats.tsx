@@ -3,9 +3,9 @@ import React, { useMemo } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 
-import { useCurrentTrip } from '@/hooks/useCurrentTrip';
 import { useTheme } from '@/hooks/useTheme';
-import { VisitedPlaceCategory } from '@/types/trip';
+import { useTripPlaces } from '@/hooks/useTripPlaces';
+import type { VisitedPlaceCategory } from '@/types/trip';
 
 type CategoryStat = {
     category: VisitedPlaceCategory;
@@ -27,15 +27,11 @@ const CATEGORY_COLORS: Record<VisitedPlaceCategory, string> = {
 
 export default function TripStatsScreen() {
     const { theme } = useTheme();
-    const { trip } = useCurrentTrip();
-
-    if (!trip) {
-        return null;
-    }
+    const { tripPlaces } = useTripPlaces();
 
     const stats = useMemo(() => {
         const map = new Map<VisitedPlaceCategory, number>();
-        trip.places.forEach((p) => {
+        tripPlaces.forEach((p) => {
             map.set(p.category, (map.get(p.category) ?? 0) + 1);
         });
 
@@ -48,32 +44,32 @@ export default function TripStatsScreen() {
             });
         });
         return result.sort((a, b) => b.count - a.count);
-    }, [trip.places]);
+    }, [tripPlaces]);
 
-    const totalPlaces = trip.places.length;
+    const totalPlaces = tripPlaces.length;
 
-    const sortedDates = trip.places
+    const sortedDates = tripPlaces
         .map((p) => p.dateTime)
         .sort((a, b) => a.localeCompare(b));
 
     const firstDate = sortedDates[0]
         ? new Date(sortedDates[0])
-        : new Date(trip.startDate);
+        : new Date();
     const lastDate = sortedDates[sortedDates.length - 1]
         ? new Date(sortedDates[sortedDates.length - 1])
-        : new Date(trip.endDate);
+        : new Date();
 
     const days =
         Math.max(
             1,
             Math.round(
-                (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
-            ) + 1
+                (lastDate.getTime() - firstDate.getTime()) /
+                (1000 * 60 * 60 * 24),
+            ) + 1,
         ) || 1;
 
     const avgPerDay = totalPlaces === 0 ? 0 : totalPlaces / days;
 
-    // Donut chart
     const radius = 46;
     const strokeWidth = 12;
     const circumference = 2 * Math.PI * radius;
@@ -81,7 +77,12 @@ export default function TripStatsScreen() {
     let offsetAccumulator = 0;
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <SafeAreaView
+            style={[
+                styles.container,
+                { backgroundColor: theme.colors.background },
+            ]}
+        >
             <View style={{ padding: 20 }}>
                 <Text
                     style={{
@@ -199,12 +200,16 @@ export default function TripStatsScreen() {
                                 color: theme.colors.textSoft,
                             }}
                         >
-                            Ainda não há dados suficientes. Adicione alguns locais para ver a
-                            distribuição.
+                            Ainda não há dados suficientes. Adicione alguns
+                            locais para ver a distribuição.
                         </Text>
                     ) : (
                         <View style={styles.chartRow}>
-                            <Svg height={120} width={120} viewBox="0 0 120 120">
+                            <Svg
+                                height={120}
+                                width={120}
+                                viewBox="0 0 120 120"
+                            >
                                 <G rotation="-90" origin="60,60">
                                     <Circle
                                         cx="60"
@@ -217,8 +222,10 @@ export default function TripStatsScreen() {
                                     {stats.map((s) => {
                                         const pct = s.count / totalPlaces;
                                         const dash = pct * circumference;
-                                        const strokeDasharray = `${dash} ${circumference - dash}`;
-                                        const strokeDashoffset = offsetAccumulator;
+                                        const strokeDasharray = `${dash} ${circumference - dash
+                                            }`;
+                                        const strokeDashoffset =
+                                            offsetAccumulator;
                                         offsetAccumulator -= dash;
 
                                         return (
@@ -229,8 +236,12 @@ export default function TripStatsScreen() {
                                                 r={radius}
                                                 stroke={s.color}
                                                 strokeWidth={strokeWidth}
-                                                strokeDasharray={strokeDasharray}
-                                                strokeDashoffset={strokeDashoffset}
+                                                strokeDasharray={
+                                                    strokeDasharray
+                                                }
+                                                strokeDashoffset={
+                                                    strokeDashoffset
+                                                }
                                                 strokeLinecap="round"
                                                 fill="transparent"
                                             />
@@ -241,13 +252,20 @@ export default function TripStatsScreen() {
 
                             <View style={{ marginLeft: 16, flex: 1 }}>
                                 {stats.map((s) => {
-                                    const pct = (s.count / totalPlaces) * 100;
+                                    const pct =
+                                        (s.count / totalPlaces) * 100;
                                     return (
-                                        <View key={s.category} style={styles.legendRow}>
+                                        <View
+                                            key={s.category}
+                                            style={styles.legendRow}
+                                        >
                                             <View
                                                 style={[
                                                     styles.legendDot,
-                                                    { backgroundColor: s.color },
+                                                    {
+                                                        backgroundColor:
+                                                            s.color,
+                                                    },
                                                 ]}
                                             />
                                             <Text
@@ -262,10 +280,12 @@ export default function TripStatsScreen() {
                                             <Text
                                                 style={{
                                                     fontSize: 12,
-                                                    color: theme.colors.textSoft,
+                                                    color: theme.colors
+                                                        .textSoft,
                                                 }}
                                             >
-                                                {s.count} ({pct.toFixed(0)}%)
+                                                {s.count} (
+                                                {pct.toFixed(0)}%)
                                             </Text>
                                         </View>
                                     );

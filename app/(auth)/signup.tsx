@@ -34,7 +34,7 @@ export default function SignupScreen() {
     async function handleSignup() {
         try {
             setLoading(true);
-            await signUp(nome.trim(), email.trim(), senha);
+            await signUp({ name: nome.trim(), email: email.trim(), password: senha.trim() });
             router.replace('/(auth)/profile-setup');
         } finally {
             setLoading(false);

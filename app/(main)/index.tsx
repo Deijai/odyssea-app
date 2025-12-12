@@ -1,9 +1,10 @@
 // app/(main)/index.tsx
 import { useTheme } from '@/hooks/useTheme';
+import { useAuthStore } from '@/stores/authStore';
 import { useTripStore } from '@/stores/tripStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     FlatList,
     ImageBackground,
@@ -20,10 +21,18 @@ const NUM_COLUMNS = 2;
 
 export default function TripsHomeScreen() {
     const { theme, toggleTheme, isDark } = useTheme();
-    const { trips, setSelectedTrip } = useTripStore();
+    const { trips, setSelectedTrip, initUserTrips, isLoading } =
+        useTripStore();
+    const userId = useAuthStore((s) => s.firebaseUser?.uid || null);
     const router = useRouter();
 
     const [filter, setFilter] = useState<FilterKey>('todas');
+
+    useEffect(() => {
+        if (userId) {
+            initUserTrips(userId);
+        }
+    }, [userId, initUserTrips]);
 
     function handleOpenTrip(id: string) {
         setSelectedTrip(id);
@@ -35,9 +44,12 @@ export default function TripsHomeScreen() {
 
     const filteredTrips = useMemo(() => {
         if (filter === 'todas') return trips;
-        if (filter === 'upcoming') return trips.filter((t) => t.status === 'Upcoming');
-        if (filter === 'current') return trips.filter((t) => t.status === 'Current');
-        if (filter === 'completed') return trips.filter((t) => t.status === 'Completed');
+        if (filter === 'upcoming')
+            return trips.filter((t) => t.status === 'Upcoming');
+        if (filter === 'current')
+            return trips.filter((t) => t.status === 'Current');
+        if (filter === 'completed')
+            return trips.filter((t) => t.status === 'Completed');
         return trips;
     }, [filter, trips]);
 
@@ -143,7 +155,9 @@ export default function TripsHomeScreen() {
                             marginTop: 2,
                         }}
                     >
-                        Continue registrando seus momentos pelo mundo.
+                        {isLoading
+                            ? 'Carregando suas viagens...'
+                            : 'Continue registrando seus momentos pelo mundo.'}
                     </Text>
                 </View>
 
@@ -182,7 +196,7 @@ export default function TripsHomeScreen() {
 
             {/* LISTA DE VIAGENS - ESTILO PINTEREST */}
             <FlatList
-                key={`trips-grid-${NUM_COLUMNS}`} // 👈 força recriar se NUM_COLUMNS mudar
+                key={`trips-grid-${NUM_COLUMNS}`}
                 data={filteredTrips}
                 keyExtractor={(item) => item.id}
                 numColumns={NUM_COLUMNS}
@@ -190,9 +204,12 @@ export default function TripsHomeScreen() {
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
                 showsVerticalScrollIndicator={false}
                 renderItem={({ item, index }) => {
-                    // alturas variáveis para efeito "masonry"
                     const cardHeight =
-                        index % 3 === 0 ? 230 : index % 3 === 1 ? 180 : 260;
+                        index % 3 === 0
+                            ? 230
+                            : index % 3 === 1
+                                ? 180
+                                : 260;
 
                     return (
                         <TouchableOpacity
@@ -240,9 +257,8 @@ export default function TripsHomeScreen() {
                                                 style={[
                                                     styles.chip,
                                                     {
-                                                        backgroundColor: mapStatusToColor(
-                                                            item.status,
-                                                        ),
+                                                        backgroundColor:
+                                                            mapStatusToColor(item.status),
                                                     },
                                                 ]}
                                             >
@@ -274,26 +290,28 @@ export default function TripsHomeScreen() {
                     );
                 }}
                 ListEmptyComponent={
-                    <View style={{ paddingHorizontal: 20, marginTop: 40 }}>
-                        <Text
-                            style={{
-                                fontSize: 15,
-                                color: theme.colors.textSoft,
-                                marginBottom: 6,
-                            }}
-                        >
-                            Nenhuma viagem por aqui ainda.
-                        </Text>
-                        <Text
-                            style={{
-                                fontSize: 13,
-                                color: theme.colors.textMuted,
-                            }}
-                        >
-                            Toque no botão + para criar sua primeira jornada e começar o
-                            diário de bordo.
-                        </Text>
-                    </View>
+                    !isLoading ? (
+                        <View style={{ paddingHorizontal: 20, marginTop: 40 }}>
+                            <Text
+                                style={{
+                                    fontSize: 15,
+                                    color: theme.colors.textSoft,
+                                    marginBottom: 6,
+                                }}
+                            >
+                                Nenhuma viagem por aqui ainda.
+                            </Text>
+                            <Text
+                                style={{
+                                    fontSize: 13,
+                                    color: theme.colors.textMuted,
+                                }}
+                            >
+                                Toque no botão + para criar sua primeira jornada e
+                                começar o diário de bordo.
+                            </Text>
+                        </View>
+                    ) : null
                 }
             />
 
@@ -411,7 +429,6 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         borderRadius: 999,
     },
-    // GRID / PINTEREST
     masonryRow: {
         justifyContent: 'space-between',
         marginBottom: 12,

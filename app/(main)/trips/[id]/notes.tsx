@@ -1,6 +1,6 @@
 // app/(main)/trips/[id]/notes.tsx
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     FlatList,
     KeyboardAvoidingView,
@@ -16,6 +16,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCurrentTrip } from '@/hooks/useCurrentTrip';
 import { useTheme } from '@/hooks/useTheme';
 
+import { db } from '@/firebase/config';
+import {
+    addDoc,
+    collection,
+    doc,
+    onSnapshot,
+    orderBy,
+    query,
+    updateDoc,
+} from 'firebase/firestore';
+
+// Tipos locais continuam os mesmos (visual/comportamento igual)
 type Note = {
     id: string;
     title: string;
@@ -31,7 +43,7 @@ type ChecklistItem = {
 
 export default function TripNotesScreen() {
     const { theme } = useTheme();
-    const { trip } = useCurrentTrip();
+    const { tripId, trip } = useCurrentTrip();
 
     const [tab, setTab] = useState<'journal' | 'checklist'>('journal');
 
@@ -42,38 +54,98 @@ export default function TripNotesScreen() {
     const [items, setItems] = useState<ChecklistItem[]>([]);
     const [itemText, setItemText] = useState('');
 
-    if (!trip) {
+    if (!tripId || !trip) {
         return null;
     }
 
-    function addNote() {
+    // ==========================
+    // 🔄 Sync de NOTAS (Firestore)
+    // ==========================
+    useEffect(() => {
+        const notesRef = collection(db, 'trips', tripId, 'notes');
+        const q = query(notesRef, orderBy('createdAt', 'desc'));
+
+        const unsubscribe = onSnapshot(q, (snap) => {
+            const loaded: Note[] = snap.docs.map((docSnap) => {
+                const data: any = docSnap.data();
+                return {
+                    id: docSnap.id,
+                    title: data.title ?? 'Anotação sem título',
+                    body: data.body ?? '',
+                    createdAt: data.createdAt ?? new Date().toISOString(),
+                };
+            });
+            setNotes(loaded);
+        });
+
+        return unsubscribe;
+    }, [tripId]);
+
+    // ==============================
+    // 🔄 Sync de CHECKLIST (Firestore)
+    // ==============================
+    useEffect(() => {
+        const checklistRef = collection(db, 'trips', tripId, 'checklist');
+        const q = query(checklistRef, orderBy('createdAt', 'asc'));
+
+        const unsubscribe = onSnapshot(q, (snap) => {
+            const loaded: ChecklistItem[] = snap.docs.map((docSnap) => {
+                const data: any = docSnap.data();
+                return {
+                    id: docSnap.id,
+                    text: data.text ?? '',
+                    done: !!data.done,
+                };
+            });
+            setItems(loaded);
+        });
+
+        return unsubscribe;
+    }, [tripId]);
+
+    // ==========================
+    // Ações: NOTAS
+    // ==========================
+    async function addNote() {
         if (!noteTitle && !noteBody) return;
-        const n: Note = {
-            id: `note-${Date.now()}`,
+
+        const payload = {
             title: noteTitle || 'Anotação sem título',
             body: noteBody,
             createdAt: new Date().toISOString(),
         };
-        setNotes((prev) => [n, ...prev]);
+
+        await addDoc(collection(db, 'trips', tripId!, 'notes'), payload);
+
+        // não precisa setNotes manual, o onSnapshot já atualiza
         setNoteTitle('');
         setNoteBody('');
     }
 
-    function addItem() {
+    // ==========================
+    // Ações: CHECKLIST
+    // ==========================
+    async function addItem() {
         if (!itemText) return;
-        const i: ChecklistItem = {
-            id: `item-${Date.now()}`,
+
+        const payload = {
             text: itemText,
             done: false,
+            createdAt: new Date().toISOString(),
         };
-        setItems((prev) => [...prev, i]);
+
+        await addDoc(collection(db, 'trips', tripId!, 'checklist'), payload);
+
         setItemText('');
     }
 
-    function toggleItem(id: string) {
-        setItems((prev) =>
-            prev.map((it) => (it.id === id ? { ...it, done: !it.done } : it))
-        );
+    async function toggleItem(id: string) {
+        const current = items.find((it) => it.id === id);
+        if (!current) return;
+
+        const itemRef = doc(db, 'trips', tripId!, 'checklist', id);
+        await updateDoc(itemRef, { done: !current.done });
+        // o onSnapshot atualiza a lista
     }
 
     const total = items.length;
@@ -86,6 +158,7 @@ export default function TripNotesScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             <SafeAreaView style={{ flex: 1 }}>
+                {/* Tabs (igual visual) */}
                 <View style={styles.tabRow}>
                     <TouchableOpacity
                         onPress={() => setTab('journal')}
@@ -93,7 +166,9 @@ export default function TripNotesScreen() {
                             styles.tabButton,
                             {
                                 borderBottomColor:
-                                    tab === 'journal' ? theme.colors.primary : 'transparent',
+                                    tab === 'journal'
+                                        ? theme.colors.primary
+                                        : 'transparent',
                             },
                         ]}
                     >
@@ -117,7 +192,9 @@ export default function TripNotesScreen() {
                             styles.tabButton,
                             {
                                 borderBottomColor:
-                                    tab === 'checklist' ? theme.colors.primary : 'transparent',
+                                    tab === 'checklist'
+                                        ? theme.colors.primary
+                                        : 'transparent',
                             },
                         ]}
                     >
@@ -136,11 +213,17 @@ export default function TripNotesScreen() {
                     </TouchableOpacity>
                 </View>
 
+                {/* ================= DIÁRIO ================= */}
                 {tab === 'journal' ? (
                     <View style={{ flex: 1 }}>
                         <FlatList
                             ListHeaderComponent={
-                                <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
+                                <View
+                                    style={{
+                                        paddingHorizontal: 20,
+                                        paddingTop: 12,
+                                    }}
+                                >
                                     <Text
                                         style={{
                                             fontSize: 15,
@@ -160,7 +243,9 @@ export default function TripNotesScreen() {
                                     >
                                         <TextInput
                                             placeholder="Título da nota"
-                                            placeholderTextColor={theme.colors.textMuted}
+                                            placeholderTextColor={
+                                                theme.colors.textMuted
+                                            }
                                             value={noteTitle}
                                             onChangeText={setNoteTitle}
                                             style={[
@@ -172,7 +257,9 @@ export default function TripNotesScreen() {
                                         />
                                         <TextInput
                                             placeholder="Escreva detalhes, sensações, reflexões..."
-                                            placeholderTextColor={theme.colors.textMuted}
+                                            placeholderTextColor={
+                                                theme.colors.textMuted
+                                            }
                                             value={noteBody}
                                             onChangeText={setNoteBody}
                                             multiline
@@ -188,10 +275,17 @@ export default function TripNotesScreen() {
                                             onPress={addNote}
                                             style={[
                                                 styles.addNoteButton,
-                                                { backgroundColor: theme.colors.primary },
+                                                {
+                                                    backgroundColor:
+                                                        theme.colors.primary,
+                                                },
                                             ]}
                                         >
-                                            <Ionicons name="add" size={18} color="#FFFFFF" />
+                                            <Ionicons
+                                                name="add"
+                                                size={18}
+                                                color="#FFFFFF"
+                                            />
                                             <Text
                                                 style={{
                                                     color: '#FFFFFF',
@@ -249,7 +343,9 @@ export default function TripNotesScreen() {
                                             marginBottom: 6,
                                         }}
                                     >
-                                        {new Date(item.createdAt).toLocaleString('pt-BR')}
+                                        {new Date(
+                                            item.createdAt,
+                                        ).toLocaleString('pt-BR')}
                                     </Text>
                                     <Text
                                         style={{
@@ -265,8 +361,14 @@ export default function TripNotesScreen() {
                         />
                     </View>
                 ) : (
+                    /* =============== CHECKLIST =============== */
                     <View style={{ flex: 1 }}>
-                        <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
+                        <View
+                            style={{
+                                paddingHorizontal: 20,
+                                paddingTop: 12,
+                            }}
+                        >
                             <Text
                                 style={{
                                     fontSize: 15,
@@ -285,12 +387,15 @@ export default function TripNotesScreen() {
                                 ]}
                             >
                                 <View style={styles.progressRow}>
-                                    <View style={styles.progressBarBackground}>
+                                    <View
+                                        style={styles.progressBarBackground}
+                                    >
                                         <View
                                             style={[
                                                 styles.progressBarFill,
                                                 {
-                                                    backgroundColor: theme.colors.primary,
+                                                    backgroundColor:
+                                                        theme.colors.primary,
                                                     flex: progress,
                                                 },
                                             ]}
@@ -316,7 +421,9 @@ export default function TripNotesScreen() {
                                     />
                                     <TextInput
                                         placeholder="Adicionar item (ex: reservar hotel, comprar ingressos...)"
-                                        placeholderTextColor={theme.colors.textMuted}
+                                        placeholderTextColor={
+                                            theme.colors.textMuted
+                                        }
                                         value={itemText}
                                         onChangeText={setItemText}
                                         style={{
@@ -340,7 +447,11 @@ export default function TripNotesScreen() {
                         <FlatList
                             data={items}
                             keyExtractor={(item) => item.id}
-                            contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: 40 }}
+                            contentContainerStyle={{
+                                padding: 20,
+                                paddingTop: 8,
+                                paddingBottom: 40,
+                            }}
                             renderItem={({ item }) => (
                                 <TouchableOpacity
                                     onPress={() => toggleItem(item.id)}
@@ -355,7 +466,8 @@ export default function TripNotesScreen() {
                                         style={[
                                             styles.checkCircle,
                                             {
-                                                borderColor: theme.colors.primary,
+                                                borderColor:
+                                                    theme.colors.primary,
                                                 backgroundColor: item.done
                                                     ? theme.colors.primary
                                                     : 'transparent',
@@ -363,7 +475,11 @@ export default function TripNotesScreen() {
                                         ]}
                                     >
                                         {item.done && (
-                                            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                                            <Ionicons
+                                                name="checkmark"
+                                                size={14}
+                                                color="#FFFFFF"
+                                            />
                                         )}
                                     </View>
                                     <Text
@@ -373,7 +489,9 @@ export default function TripNotesScreen() {
                                             color: item.done
                                                 ? theme.colors.textMuted
                                                 : theme.colors.text,
-                                            textDecorationLine: item.done ? 'line-through' : 'none',
+                                            textDecorationLine: item.done
+                                                ? 'line-through'
+                                                : 'none',
                                         }}
                                     >
                                         {item.text}
@@ -388,7 +506,8 @@ export default function TripNotesScreen() {
                                         marginTop: 10,
                                     }}
                                 >
-                                    Nenhum item ainda. Use o campo acima para criar sua checklist.
+                                    Nenhum item ainda. Use o campo acima para
+                                    criar sua checklist.
                                 </Text>
                             }
                         />

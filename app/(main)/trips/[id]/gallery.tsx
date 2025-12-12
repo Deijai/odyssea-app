@@ -1,19 +1,22 @@
 // app/(main)/trips/[id]/gallery.tsx
 import { CategoryChip } from '@/components/ui/CategoryChip';
-import { useCurrentTrip } from '@/hooks/useCurrentTrip';
 import { useTheme } from '@/hooks/useTheme';
+import { useTripPlaces } from '@/hooks/useTripPlaces';
 import { VisitedPlaceCategory } from '@/types/trip';
 import React, { useMemo, useState } from 'react';
 import {
+    Dimensions,
     FlatList,
     Image,
     Modal,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type MediaItem = {
     id: string;
@@ -22,23 +25,24 @@ type MediaItem = {
     date: string;
 };
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
 export default function TripGalleryScreen() {
     const { theme } = useTheme();
-    const { trip } = useCurrentTrip();
+    const { tripPlaces } = useTripPlaces();
 
-    const [selectedCategory, setSelectedCategory] = useState<VisitedPlaceCategory | 'Todas'>(
-        'Todas'
-    );
-    const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<
+        VisitedPlaceCategory | 'Todas'
+    >('Todas');
 
-    if (!trip) {
-        return null;
-    }
+    // índice dentro de `filteredMedia`
+    const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
     const allMedia: MediaItem[] = useMemo(() => {
         const items: MediaItem[] = [];
-        trip.places.forEach((place) => {
-            place.mediaUrls.forEach((uri, idx) => {
+        tripPlaces.forEach((place) => {
+            (place.mediaUrls ?? []).forEach((uri, idx) => {
+                if (!uri) return;
                 items.push({
                     id: `${place.id}-${idx}`,
                     uri,
@@ -48,16 +52,31 @@ export default function TripGalleryScreen() {
             });
         });
         return items;
-    }, [trip.places]);
+    }, [tripPlaces]);
 
     const filteredMedia =
         selectedCategory === 'Todas'
             ? allMedia
             : allMedia.filter((m) => m.category === selectedCategory);
 
+    function handleChangeCategory(cat: VisitedPlaceCategory | 'Todas') {
+        setSelectedCategory(cat);
+        setSelectedIndex(null); // fecha modal se estiver aberto
+    }
+
+    function closeSlider() {
+        setSelectedIndex(null);
+    }
+
     if (allMedia.length === 0) {
         return (
-            <View style={[styles.emptyContainer, { backgroundColor: theme.colors.background }]}>
+            <SafeAreaView
+                edges={['top']}
+                style={[
+                    styles.emptyContainer,
+                    { backgroundColor: theme.colors.background },
+                ]}
+            >
                 <Text
                     style={{
                         fontSize: 16,
@@ -76,10 +95,10 @@ export default function TripGalleryScreen() {
                         paddingHorizontal: 32,
                     }}
                 >
-                    Ao adicionar fotos e vídeos aos locais visitados, eles vão aparecer aqui em forma
-                    de galeria.
+                    Ao adicionar fotos e vídeos aos locais visitados, eles vão
+                    aparecer aqui em forma de galeria.
                 </Text>
-            </View>
+            </SafeAreaView>
         );
     }
 
@@ -96,130 +115,249 @@ export default function TripGalleryScreen() {
         'Outro',
     ];
 
-    return (
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <FlatList
-                ListHeaderComponent={
-                    <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
-                        <Text
-                            style={{
-                                fontSize: 15,
-                                fontWeight: '600',
-                                color: theme.colors.text,
-                                marginBottom: 8,
-                            }}
-                        >
-                            Sua galeria de memórias
-                        </Text>
-                        <FlatList
-                            data={categories}
-                            keyExtractor={(item) => item}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            renderItem={({ item }) => (
-                                <View style={{ marginRight: 8 }}>
-                                    {item === 'Todas' ? (
-                                        <TouchableOpacity
-                                            activeOpacity={0.9}
-                                            onPress={() => setSelectedCategory('Todas')}
-                                            style={[
-                                                styles.chip,
-                                                {
-                                                    backgroundColor:
-                                                        selectedCategory === 'Todas'
-                                                            ? theme.colors.primary
-                                                            : theme.colors.cardSoft,
-                                                },
-                                            ]}
-                                        >
-                                            <Text
-                                                style={{
-                                                    fontSize: 13,
-                                                    fontWeight: '500',
-                                                    color:
-                                                        selectedCategory === 'Todas'
-                                                            ? '#FFFFFF'
-                                                            : theme.colors.textSoft,
-                                                }}
-                                            >
-                                                Todas
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ) : (
-                                        <CategoryChip
-                                            label={item}
-                                            selected={selectedCategory === item}
-                                            onPress={() => setSelectedCategory(item)}
-                                        />
-                                    )}
-                                </View>
-                            )}
-                        />
-                    </View>
-                }
-                data={filteredMedia}
-                keyExtractor={(item) => item.id}
-                numColumns={3}
-                contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 60 }}
-                columnWrapperStyle={{ justifyContent: 'space-between' }}
-                renderItem={({ item }) => (
-                    <Pressable
-                        onPress={() => setSelectedMedia(item)}
-                        style={{ width: '32%', aspectRatio: 1, marginBottom: 8 }}
-                    >
-                        <Image
-                            source={{ uri: item.uri }}
-                            style={{
-                                width: '100%',
-                                height: '100%',
-                                borderRadius: 10,
-                            }}
-                        />
-                    </Pressable>
-                )}
-            />
+    // ====== MONTAR MASONRY (2 COLUNAS) ======
+    type MediaWithIndex = { media: MediaItem; index: number };
 
+    const leftColumn: MediaWithIndex[] = [];
+    const rightColumn: MediaWithIndex[] = [];
+
+    filteredMedia.forEach((media, index) => {
+        if (index % 2 === 0) {
+            leftColumn.push({ media, index });
+        } else {
+            rightColumn.push({ media, index });
+        }
+    });
+
+    return (
+        <SafeAreaView
+            edges={['top']}
+            style={[
+
+                styles.container,
+                { backgroundColor: theme.colors.background },
+            ]}
+        >
+            <ScrollView
+                contentContainerStyle={{
+                    paddingBottom: 60,
+                }}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* HEADER + CATEGORIAS */}
+                <View
+                    style={{
+                        paddingHorizontal: 20,
+                        paddingTop: 12,
+                        paddingBottom: 8,
+                    }}
+                >
+                    <Text
+                        style={{
+                            fontSize: 15,
+                            fontWeight: '600',
+                            color: theme.colors.text,
+                            marginBottom: 8,
+                        }}
+                    >
+                        Sua galeria de memórias
+                    </Text>
+                    <FlatList
+                        data={categories}
+                        keyExtractor={(item) => item}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        renderItem={({ item }) => (
+                            <View style={{ marginRight: 8 }}>
+                                {item === 'Todas' ? (
+                                    <TouchableOpacity
+                                        activeOpacity={0.9}
+                                        onPress={() =>
+                                            handleChangeCategory('Todas')
+                                        }
+                                        style={[
+                                            styles.chip,
+                                            {
+                                                backgroundColor:
+                                                    selectedCategory === 'Todas'
+                                                        ? theme.colors.primary
+                                                        : theme.colors.cardSoft,
+                                            },
+                                        ]}
+                                    >
+                                        <Text
+                                            style={{
+                                                fontSize: 13,
+                                                fontWeight: '500',
+                                                color:
+                                                    selectedCategory ===
+                                                        'Todas'
+                                                        ? '#FFFFFF'
+                                                        : theme.colors
+                                                            .textSoft,
+                                            }}
+                                        >
+                                            Todas
+                                        </Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <CategoryChip
+                                        label={item}
+                                        selected={selectedCategory === item}
+                                        onPress={() =>
+                                            handleChangeCategory(item)
+                                        }
+                                    />
+                                )}
+                            </View>
+                        )}
+                    />
+                </View>
+
+                {/* GRID ESTILO PINTEREST */}
+                <View style={styles.masonryContainer}>
+                    <View style={styles.column}>
+                        {leftColumn.map(({ media, index }) => {
+                            const cardHeight =
+                                index % 3 === 0
+                                    ? 260
+                                    : index % 3 === 1
+                                        ? 200
+                                        : 300; // alturas variáveis
+
+                            return (
+                                <Pressable
+                                    key={media.id}
+                                    onPress={() => setSelectedIndex(index)}
+                                    style={[
+                                        styles.masonryItem,
+                                        { height: cardHeight },
+                                    ]}
+                                >
+                                    <Image
+                                        source={{ uri: media.uri }}
+                                        style={styles.masonryImage}
+                                    />
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+
+                    <View style={styles.column}>
+                        {rightColumn.map(({ media, index }) => {
+                            const cardHeight =
+                                index % 3 === 0
+                                    ? 220
+                                    : index % 3 === 1
+                                        ? 280
+                                        : 210;
+
+                            return (
+                                <Pressable
+                                    key={media.id}
+                                    onPress={() => setSelectedIndex(index)}
+                                    style={[
+                                        styles.masonryItem,
+                                        { height: cardHeight },
+                                    ]}
+                                >
+                                    <Image
+                                        source={{ uri: media.uri }}
+                                        style={styles.masonryImage}
+                                    />
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+                </View>
+            </ScrollView>
+
+            {/* MODAL FULLSCREEN COM SLIDER */}
             <Modal
-                visible={!!selectedMedia}
+                visible={selectedIndex !== null}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setSelectedMedia(null)}
+                onRequestClose={closeSlider}
             >
                 <View
                     style={[
-                        styles.modalBackdrop,
+                        styles.fullscreenModal,
                         { backgroundColor: theme.colors.overlay },
                     ]}
                 >
-                    <Pressable style={{ flex: 1 }} onPress={() => setSelectedMedia(null)} />
-                    {selectedMedia && (
-                        <View
-                            style={[
-                                styles.modalContent,
-                                { backgroundColor: theme.colors.card },
-                            ]}
-                        >
-                            <Image
-                                source={{ uri: selectedMedia.uri }}
-                                style={styles.modalImage}
-                                resizeMode="cover"
-                            />
-                            <Text
-                                style={{
-                                    fontSize: 13,
-                                    color: theme.colors.textSoft,
-                                    marginTop: 6,
-                                    textAlign: 'center',
+                    {selectedIndex !== null && filteredMedia.length > 0 && (
+                        <>
+                            <FlatList
+                                data={filteredMedia}
+                                horizontal
+                                pagingEnabled
+                                showsHorizontalScrollIndicator={false}
+                                keyExtractor={(item) => item.id}
+                                initialScrollIndex={selectedIndex}
+                                getItemLayout={(_, index) => ({
+                                    length: SCREEN_WIDTH,
+                                    offset: SCREEN_WIDTH * index,
+                                    index,
+                                })}
+                                onMomentumScrollEnd={(ev) => {
+                                    const offsetX =
+                                        ev.nativeEvent.contentOffset.x;
+                                    const current =
+                                        Math.round(offsetX / SCREEN_WIDTH) ||
+                                        0;
+                                    // atualiza índice se quiser usar em indicador
+                                    // setSelectedIndex(current); // opcional
                                 }}
+                                renderItem={({ item }) => (
+                                    <View style={styles.slide}>
+                                        <Image
+                                            source={{ uri: item.uri }}
+                                            style={styles.fullImage}
+                                            resizeMode="contain"
+                                        />
+                                        <Text
+                                            style={{
+                                                fontSize: 13,
+                                                color: theme.colors.textSoft,
+                                                marginTop: 8,
+                                                textAlign: 'center',
+                                            }}
+                                        >
+                                            {item.category} •{' '}
+                                            {new Date(
+                                                item.date,
+                                            ).toLocaleDateString('pt-BR')}
+                                        </Text>
+                                    </View>
+                                )}
+                            />
+
+                            {/* Botão fechar */}
+                            <TouchableOpacity
+                                onPress={closeSlider}
+                                style={[
+                                    styles.closeButton,
+                                    {
+                                        backgroundColor:
+                                            theme.colors.cardSoft,
+                                    },
+                                ]}
                             >
-                                {selectedMedia.category} •{' '}
-                                {new Date(selectedMedia.date).toLocaleDateString('pt-BR')}
-                            </Text>
-                        </View>
+                                <Text
+                                    style={{
+                                        color: theme.colors.text,
+                                        fontWeight: '700',
+                                        fontSize: 16,
+                                    }}
+                                >
+                                    ✕
+                                </Text>
+                            </TouchableOpacity>
+                        </>
                     )}
                 </View>
             </Modal>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -237,19 +375,47 @@ const styles = StyleSheet.create({
         paddingVertical: 7,
         borderRadius: 999,
     },
-    modalBackdrop: {
+    // Masonry
+    masonryContainer: {
+        flexDirection: 'row',
+        paddingHorizontal: 10,
+        gap: 10,
+    },
+    column: {
+        flex: 1,
+    },
+    masonryItem: {
+        borderRadius: 14,
+        overflow: 'hidden',
+        marginBottom: 10,
+    },
+    masonryImage: {
+        width: '100%',
+        height: '100%',
+    },
+    // Modal fullscreen
+    fullscreenModal: {
         flex: 1,
         justifyContent: 'center',
-        paddingHorizontal: 20,
     },
-    modalContent: {
-        borderRadius: 18,
-        padding: 10,
+    slide: {
+        width: SCREEN_WIDTH,
         alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 16,
     },
-    modalImage: {
-        width: '100%',
-        height: 260,
-        borderRadius: 14,
+    fullImage: {
+        width: SCREEN_WIDTH - 32,
+        height: SCREEN_WIDTH - 32,
+    },
+    closeButton: {
+        position: 'absolute',
+        top: 40,
+        right: 20,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });

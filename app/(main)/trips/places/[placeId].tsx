@@ -1,10 +1,11 @@
 // app/(main)/trips/places/[placeId].tsx
 import { RatingStars } from '@/components/ui/RatingStars';
+import { useCurrentTrip } from '@/hooks/useCurrentTrip';
 import { useTheme } from '@/hooks/useTheme';
-import { useTripStore } from '@/stores/tripStore';
+import { useTripPlaces } from '@/hooks/useTripPlaces';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
     Image,
     SafeAreaView,
@@ -20,31 +21,52 @@ export default function PlaceDetailScreen() {
     const { theme } = useTheme();
     const router = useRouter();
 
-    // ✅ Busca direta sem desestruturação que pode causar loops
-    const findTripByPlaceId = useTripStore((s) => s.findTripByPlaceId);
-    const result = placeId ? findTripByPlaceId(placeId) : null;
+    // Trip atual (já vem do fluxo que seta selectedTrip no store)
+    const { trip } = useCurrentTrip();
 
-    // ✅ useRef para evitar múltiplas chamadas de navegação
+    // Lista de lugares da trip atual (vindo do store/hook, não do componente)
+    const { tripPlaces } = useTripPlaces();
+
+    // Evita navegação em loop
     const hasNavigated = useRef(false);
 
+    // Encontrar o local pelo id dentro da trip atual
+    const place = useMemo(() => {
+        if (!placeId) return undefined;
+        return tripPlaces.find((p) => p.id === placeId);
+    }, [tripPlaces, placeId]);
+
     useEffect(() => {
-        if ((!placeId || !result) && !hasNavigated.current) {
+        // Se não tiver placeId ou não tiver trip ou place, volta pra home
+        if ((!placeId || !trip || !place) && !hasNavigated.current) {
             hasNavigated.current = true;
             router.replace('/(main)');
         }
-    }, [placeId, result]);
+    }, [placeId, trip, place, router]);
 
-    if (!placeId || !result) {
+    // Estado intermediário (enquanto ainda não carregou trip/places)
+    if (!placeId || !trip || !place) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <Text style={{ color: theme.colors.text }}>Carregando...</Text>
+            <SafeAreaView
+                style={[
+                    styles.container,
+                    { backgroundColor: theme.colors.background },
+                ]}
+            >
+                <View
+                    style={{
+                        flex: 1,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                    }}
+                >
+                    <Text style={{ color: theme.colors.text }}>
+                        Carregando...
+                    </Text>
                 </View>
             </SafeAreaView>
         );
     }
-
-    const { trip, place } = result;
 
     const date = new Date(place.dateTime);
     const dateText = date.toLocaleDateString('pt-BR', {
@@ -58,8 +80,14 @@ export default function PlaceDetailScreen() {
     });
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <SafeAreaView
+            style={[
+                styles.container,
+                { backgroundColor: theme.colors.background },
+            ]}
+        >
             <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+                {/* HEADER */}
                 <View style={styles.headerRow}>
                     <TouchableOpacity
                         onPress={() => router.back()}
@@ -68,7 +96,11 @@ export default function PlaceDetailScreen() {
                             { backgroundColor: theme.colors.cardSoft },
                         ]}
                     >
-                        <Ionicons name="chevron-back" size={18} color={theme.colors.text} />
+                        <Ionicons
+                            name="chevron-back"
+                            size={18}
+                            color={theme.colors.text}
+                        />
                     </TouchableOpacity>
 
                     <Text
@@ -87,10 +119,15 @@ export default function PlaceDetailScreen() {
                             { backgroundColor: theme.colors.cardSoft },
                         ]}
                     >
-                        <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.text} />
+                        <Ionicons
+                            name="ellipsis-horizontal"
+                            size={18}
+                            color={theme.colors.text}
+                        />
                     </TouchableOpacity>
                 </View>
 
+                {/* CAPA */}
                 {place.mediaUrls && place.mediaUrls[0] ? (
                     <Image
                         source={{ uri: place.mediaUrls[0] }}
@@ -111,7 +148,10 @@ export default function PlaceDetailScreen() {
                     </View>
                 )}
 
-                <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+                {/* CONTEÚDO */}
+                <View
+                    style={{ paddingHorizontal: 20, paddingTop: 16 }}
+                >
                     <View style={styles.titleRow}>
                         <View style={{ flex: 1, marginRight: 8 }}>
                             <Text
@@ -136,10 +176,17 @@ export default function PlaceDetailScreen() {
                         <View
                             style={[
                                 styles.badge,
-                                { backgroundColor: theme.colors.cardSoft },
+                                {
+                                    backgroundColor:
+                                        theme.colors.cardSoft,
+                                },
                             ]}
                         >
-                            <Ionicons name="calendar-outline" size={14} color={theme.colors.textSoft} />
+                            <Ionicons
+                                name="calendar-outline"
+                                size={14}
+                                color={theme.colors.textSoft}
+                            />
                             <Text
                                 style={{
                                     fontSize: 12,
@@ -153,7 +200,11 @@ export default function PlaceDetailScreen() {
                     </View>
 
                     <View style={styles.infoRow}>
-                        <Ionicons name="time-outline" size={16} color={theme.colors.textSoft} />
+                        <Ionicons
+                            name="time-outline"
+                            size={16}
+                            color={theme.colors.textSoft}
+                        />
                         <Text
                             style={{
                                 fontSize: 13,
@@ -166,7 +217,11 @@ export default function PlaceDetailScreen() {
                     </View>
 
                     <View style={styles.infoRow}>
-                        <Ionicons name="location-outline" size={16} color={theme.colors.textSoft} />
+                        <Ionicons
+                            name="location-outline"
+                            size={16}
+                            color={theme.colors.textSoft}
+                        />
                         <Text
                             style={{
                                 fontSize: 13,
@@ -189,7 +244,10 @@ export default function PlaceDetailScreen() {
                                     key={tag}
                                     style={[
                                         styles.tagChip,
-                                        { backgroundColor: theme.colors.cardSoft },
+                                        {
+                                            backgroundColor:
+                                                theme.colors.cardSoft,
+                                        },
                                     ]}
                                 >
                                     <Text
@@ -232,10 +290,17 @@ export default function PlaceDetailScreen() {
                     <View
                         style={[
                             styles.mapPlaceholder,
-                            { backgroundColor: theme.colors.cardSoft },
+                            {
+                                backgroundColor:
+                                    theme.colors.cardSoft,
+                            },
                         ]}
                     >
-                        <Ionicons name="map-outline" size={22} color={theme.colors.textMuted} />
+                        <Ionicons
+                            name="map-outline"
+                            size={22}
+                            color={theme.colors.textMuted}
+                        />
                         <Text
                             style={{
                                 fontSize: 12,

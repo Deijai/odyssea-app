@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+    Image,
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
@@ -22,20 +23,34 @@ import {
 export default function ProfileSetupScreen() {
     const { theme } = useTheme();
     const router = useRouter();
-    const { user, updateProfile } = useAuthStore();
 
-    const [displayName, setDisplayName] = useState(user?.name ?? '');
-    const [homeCountry, setHomeCountry] = useState(user?.homeCountry ?? '');
-    const [avatarUrl, setAvatarUrl] = useState<string | undefined>(user?.avatarUrl);
+    const { profile, updateProfile, updateAvatar } = useAuthStore();
+
+    const [displayName, setDisplayName] = useState(
+        profile?.displayName ?? ''
+    );
+    const [homeCountry, setHomeCountry] = useState(
+        profile?.homeCountry ?? ''
+    );
+    const [bio, setBio] = useState(profile?.bio ?? '');
+    const [avatarUrl, setAvatarUrl] = useState<string | undefined>(
+        profile?.avatarUrl
+    );
     const [loading, setLoading] = useState(false);
 
+    const effectiveAvatarUri = avatarUrl || profile?.avatarUrl;
+
     async function handlePickAvatar() {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const { status } =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+
         if (status !== 'granted') {
             return;
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
+            // opção nova:
+            // mediaTypes: [ImagePicker.MediaType.IMAGE],
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
             aspect: [1, 1],
@@ -43,19 +58,35 @@ export default function ProfileSetupScreen() {
         });
 
         if (!result.canceled && result.assets.length > 0) {
-            setAvatarUrl(result.assets[0].uri);
+            const uri = result.assets[0].uri;
+            setLoading(true);
+            try {
+                await updateAvatar(uri);
+                setAvatarUrl(uri);
+            } finally {
+                setLoading(false);
+            }
         }
     }
 
-    function handleContinue() {
+    async function handleContinue() {
         setLoading(true);
-        updateProfile({
-            name: displayName.trim() || user?.name,
-            avatarUrl,
-            homeCountry: homeCountry.trim(),
-        });
-        setLoading(false);
-        router.replace('/(main)');
+        try {
+            await updateProfile({
+                displayName:
+                    displayName.trim() ||
+                    profile?.displayName ||
+                    '',
+                homeCountry: homeCountry.trim(),
+                bio: bio.trim(),
+            });
+
+            // Aqui já manda pro main; o RootLayout só vai deixar
+            // se isProfileComplete(profile) for true
+            router.replace('/(main)');
+        } finally {
+            setLoading(false);
+        }
     }
 
     return (
@@ -82,7 +113,8 @@ export default function ProfileSetupScreen() {
                             { color: theme.colors.textSoft },
                         ]}
                     >
-                        Adicione uma foto e alguns detalhes para deixar seu diário de viagem com a sua cara.
+                        Adicione uma foto e alguns detalhes para
+                        deixar seu diário de viagem com a sua cara.
                     </Text>
 
                     <View style={styles.avatarContainer}>
@@ -92,31 +124,52 @@ export default function ProfileSetupScreen() {
                                 styles.avatarButton,
                                 {
                                     borderColor: theme.colors.primary,
-                                    backgroundColor: theme.colors.cardSoft,
+                                    backgroundColor:
+                                        theme.colors.cardSoft,
                                 },
                             ]}
+                            disabled={loading}
                         >
-                            {avatarUrl ? (
-                                <View
-                                    style={[
-                                        styles.avatarPreview,
-                                        { backgroundColor: theme.colors.card },
-                                    ]}
-                                >
-                                    <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
-                                    <Text
+                            {effectiveAvatarUri ? (
+                                <View style={styles.avatarPreview}>
+                                    <Image
+                                        source={{ uri: effectiveAvatarUri }}
                                         style={{
-                                            fontSize: 13,
-                                            color: theme.colors.textSoft,
-                                            marginTop: 6,
+                                            width: 120,
+                                            height: 120,
+                                            borderRadius: 999,
+                                            marginBottom: 8,
+                                        }}
+                                    />
+                                    <View
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
                                         }}
                                     >
-                                        Foto selecionada
-                                    </Text>
+                                        <Ionicons
+                                            name="checkmark-circle"
+                                            size={20}
+                                            color={theme.colors.primary}
+                                        />
+                                        <Text
+                                            style={{
+                                                fontSize: 13,
+                                                color: theme.colors.textSoft,
+                                                marginLeft: 6,
+                                            }}
+                                        >
+                                            Foto selecionada
+                                        </Text>
+                                    </View>
                                 </View>
                             ) : (
                                 <>
-                                    <Ionicons name="camera-outline" size={22} color={theme.colors.primary} />
+                                    <Ionicons
+                                        name="camera-outline"
+                                        size={22}
+                                        color={theme.colors.primary}
+                                    />
                                     <Text
                                         style={{
                                             marginTop: 6,
@@ -162,7 +215,9 @@ export default function ProfileSetupScreen() {
                             </Text>
                             <TextInput
                                 placeholder="Ex: Brasil"
-                                placeholderTextColor={theme.colors.textMuted}
+                                placeholderTextColor={
+                                    theme.colors.textMuted
+                                }
                                 value={homeCountry}
                                 onChangeText={setHomeCountry}
                                 style={{
@@ -174,6 +229,41 @@ export default function ProfileSetupScreen() {
                                     backgroundColor: theme.colors.card,
                                     color: theme.colors.text,
                                     fontSize: 15,
+                                }}
+                            />
+                        </View>
+
+                        <View style={{ marginBottom: 14 }}>
+                            <Text
+                                style={{
+                                    fontSize: 13,
+                                    marginBottom: 6,
+                                    fontWeight: '500',
+                                    color: theme.colors.textSoft,
+                                }}
+                            >
+                                Bio
+                            </Text>
+                            <TextInput
+                                placeholder="Conte um pouco sobre você, seu estilo de viagem..."
+                                placeholderTextColor={
+                                    theme.colors.textMuted
+                                }
+                                value={bio}
+                                onChangeText={setBio}
+                                multiline
+                                numberOfLines={4}
+                                style={{
+                                    minHeight: 90,
+                                    borderRadius: 16,
+                                    paddingHorizontal: 16,
+                                    paddingVertical: 10,
+                                    borderWidth: 1,
+                                    borderColor: theme.colors.border,
+                                    backgroundColor: theme.colors.card,
+                                    color: theme.colors.text,
+                                    fontSize: 14,
+                                    textAlignVertical: 'top',
                                 }}
                             />
                         </View>
@@ -220,6 +310,7 @@ const styles = StyleSheet.create({
     },
     avatarPreview: {
         alignItems: 'center',
+        justifyContent: 'center',
     },
     form: {
         marginTop: 4,
